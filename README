@@ -4,6 +4,14 @@ Pericles: Mailchimp Newsletter generator from Google Calendar
 Pericles takes the all the events for the week and generates a mailchimp 
 newsletter for them.
 
+Dependencies
+
+ * mailsnake
+ * gdata
+
+Running pip install -r requirements.txt ought to work. I'll work on making
+a setup.py script later.
+
 Usage:
 
  * Copy the example-settings.py file to settings.py
