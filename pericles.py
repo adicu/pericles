@@ -3,6 +3,16 @@ from gdata.calendar.client import CalendarClient, CalendarEventQuery
 from datetime import datetime, timedelta
 from mailsnake import MailSnake
 
+def find_template(name):
+    mc = MailSnake(settings.MC_API_KEY)
+    templates = mc.templates()['user']
+
+    for temp in templates:
+        if temp['name'] == name:
+            return temp['id']
+
+    return 0
+
 def parse_timestamp(ts):
     daystr, timestr = tuple(ts.split('T'))
     year, month, day = tuple([int(part) for part in daystr.split('-')])
@@ -54,14 +64,19 @@ def gen_email_text():
 
 def create_campaign(text):
     mc = MailSnake(settings.MC_API_KEY)
+    print "Creating campaign using content\n%s" % text
     options = {
         "list_id" : settings.MC_LIST_ID,
         "subject" : datetime.today().strftime(settings.SUBJECT_TEMPLATE),
         "from_email" : settings.MC_EMAIL,
         "from_name" : settings.MC_FROM_NAME,
         "to_name" : settings.MC_TO_NAME,
+        "template_id" : find_template(settings.MC_TEMPLATE_NAME)
     }
-    mc.campaignCreate(type='regular', content={'text': text}, options=options)
+    section_name = 'html_' + settings.MC_TEMPLATE_SECTION
+    content = {section_name : text}
+    return mc.campaignCreate(type='regular', content=content, options=options)
 
 if __name__ == '__main__':
-    create_campaign(gen_email_text())
+    cid = create_campaign(gen_email_text())
+    print "Created new campaign %s" % cid
