@@ -13,6 +13,15 @@ def find_template(name):
 
     return 0
 
+def find_list(name):
+    mc = MailSnake(settings.MC_API_KEY)
+    lists = mc.lists(filters = {"list_name": name})
+
+    if lists['total'] == 0:
+        return 0
+
+    return lists['data'][0]['id']
+
 def parse_timestamp(ts):
     daystr, timestr = tuple(ts.split('T'))
     year, month, day = tuple([int(part) for part in daystr.split('-')])
@@ -20,7 +29,7 @@ def parse_timestamp(ts):
     
     return datetime(year, month, day, hour, minute)
 
-def event_text(event):
+def event_text(event, html=True):
     event_dict = {}
 
     event_dict['title'] = event.title.text
@@ -35,9 +44,13 @@ def event_text(event):
     event_dict['location'] = event.where[0].value
 
     event_dict['description'] = event.content.text
+    
+    if html:
+        template = unicode(settings.EVENT_HTML_TEMPLATE)
+    else: 
+        template = unicode(settings.EVENT_TEXT_TEMPLATE)
 
-    return settings.EVENT_TEMPLATE.format(**event_dict)
-
+    return template.format(**event_dict)
 
 def get_events():
     client = CalendarClient(source='adicu-pericles-v1')
@@ -59,24 +72,45 @@ def get_events():
 
 def gen_email_text():
     feed = get_events()
-    text = '\n\n'.join([event_text(event) for event in reversed(feed.entry)])
-    return text
+    text = u'\n\n'.join([event_text(event, False) 
+                        for event in reversed(feed.entry)])
+    html = u'\n\n'.join([event_text(event, True) 
+                        for event in reversed(feed.entry)])
+    return html, text
 
-def create_campaign(text):
+def create_campaign(html, text):
     mc = MailSnake(settings.MC_API_KEY)
-    print "Creating campaign using content\n%s" % text
     options = {
-        "list_id" : settings.MC_LIST_ID,
         "subject" : datetime.today().strftime(settings.SUBJECT_TEMPLATE),
         "from_email" : settings.MC_EMAIL,
         "from_name" : settings.MC_FROM_NAME,
         "to_name" : settings.MC_TO_NAME,
-        "template_id" : find_template(settings.MC_TEMPLATE_NAME)
+        "template_id" : find_template(settings.MC_TEMPLATE_NAME),
+        "list_id" : find_list(settings.MC_LIST_NAME)
     }
     section_name = 'html_' + settings.MC_TEMPLATE_SECTION
-    content = {section_name : text}
-    return mc.campaignCreate(type='regular', content=content, options=options)
+    content = {section_name: html, "text": text}
+    cid = mc.campaignCreate(type='regular', content=content, options=options)
+
+    return cid
+
+def campaign_info(cid):
+    mc = MailSnake(settings.MC_API_KEY)
+    campaigns = mc.campaigns(filters = {"campaign_id": cid})
+
+    if campaigns['total'] == 0:
+        return 0
+    
+    webid = campaigns['data'][0]['web_id']
+    title = campaigns['data'][0]['title']
+    
+    region = settings.MC_API_KEY.split('-')[1]
+    
+    url = "https://%s.admin.mailchimp.com/campaigns/show?id=%d" % (region, webid)
+
+    return title, url
 
 if __name__ == '__main__':
-    cid = create_campaign(gen_email_text())
-    print "Created new campaign %s" % cid
+    cid = create_campaign(*gen_email_text())
+    title, url = campaign_info(cid)
+    print "Created new campaign %s. Edit it at %s." % (title, url)
