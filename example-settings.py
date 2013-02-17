@@ -17,4 +17,4 @@ EVENT_TEMPLATE = ("<h3>{title}</h3>\n"
 SUBJECT_TEMPLATE = "Test Newsletter %m/%d/%Y"
 
 DATE_FORMAT = '%A, %m/%d'
-TIME_FORMAT = '%H:%M %p'
+TIME_FORMAT = '%I:%M %p'

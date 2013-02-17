@@ -23,33 +23,44 @@ def find_list(name):
     return lists['data'][0]['id']
 
 def parse_timestamp(ts):
-    daystr, timestr = tuple(ts.split('T'))
+    if 'T' in ts:
+        daystr, timestr = tuple(ts.split('T'))
+    else:
+        daystr = ts
+        timestr = None
     year, month, day = tuple([int(part) for part in daystr.split('-')])
-    hour, minute = tuple([int(part) for part in timestr.split(':')[:2]])
-    
-    return datetime(year, month, day, hour, minute)
+    if timestr:
+        hour, minute = tuple([int(part) for part in timestr.split(':')[:2]])
+    else:
+        return datetime(year, month, day), False
+    return datetime(year, month, day, hour, minute), True
 
 def event_text(event, html=True):
     event_dict = {}
 
     event_dict['title'] = event.title.text
-
-    start_time = parse_timestamp(event.when[0].start)
-    end_time = parse_timestamp(event.when[0].end)
-
-    event_dict['date'] = start_time.strftime(settings.DATE_FORMAT)
-    event_dict['start'] = start_time.strftime(settings.TIME_FORMAT)
-    event_dict['end'] = end_time.strftime(settings.TIME_FORMAT)
-
+    
+    start_time, start_set = parse_timestamp(event.when[0].start)
+    end_time, end_set = parse_timestamp(event.when[0].end)
+    event_dict['start_date'] = start_time.strftime(settings.DATE_FORMAT)
+    event_dict['start_time'] = start_time.strftime(settings.TIME_FORMAT)
+    event_dict['end_date'] = end_time.strftime(settings.DATE_FORMAT)
+    event_dict['end_time'] = end_time.strftime(settings.TIME_FORMAT) 
     event_dict['location'] = event.where[0].value
-
     event_dict['description'] = event.content.text
     
-    if html:
-        template = unicode(settings.EVENT_HTML_TEMPLATE)
-    else: 
-        template = unicode(settings.EVENT_TEXT_TEMPLATE)
-
+    if event_dict['start_date'] != event_dict['end_date']:
+        dif_dates = True
+    else:
+        dif_dates = False
+    if dif_dates:
+        if start_set and end_set:
+            template = unicode(settings.EVENT_HTML_TEMPLATE_WITH_ALL) if html else unicode(settings.EVENT_TEXT_TEMPLATE_WITH_ALL)
+        else:
+            template = unicode(settings.EVENT_HTML_TEMPLATE_NO_TIMES) if html else unicode(settings.EVENT_TEXT_TEMPLATE_NO_TIMES)
+    else:
+        template = unicode(settings.EVENT_HTML_TEMPLATE_DEFAULT) if html else unicode(settings.EVENT_TEXT_TEMPLATE_DEFAULT)
+            
     return template.format(**event_dict)
 
 def get_events():
@@ -70,13 +81,19 @@ def get_events():
 
     return client.GetCalendarEventFeed(uri=uri, q=query)
 
+def gen_blurb(html=True):
+    if html:
+        return u'<h3>Hey ADI</h3></br><p>Have a good week</p>'
+    else:
+        return u'Hey ADI\n Have a good week'
+
 def gen_email_text():
     feed = get_events()
     text = u'\n\n'.join([event_text(event, False) 
                         for event in reversed(feed.entry)])
     html = u'\n\n'.join([event_text(event, True) 
                         for event in reversed(feed.entry)])
-    return html, text
+    return gen_blurb(True)+ html, gen_blurb(False) + text
 
 def create_campaign(html, text):
     mc = MailSnake(settings.MC_API_KEY)
