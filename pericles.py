@@ -73,7 +73,7 @@ def get_events():
                 "/private/full"
 
     start_date = datetime.today()
-    end_date = start_date + timedelta(weeks=1)
+    end_date = start_date + timedelta(days=10)
 
     query = CalendarEventQuery()
     query.start_min = start_date.strftime('%Y-%m-%d')
