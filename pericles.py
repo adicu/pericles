@@ -1,7 +1,17 @@
-import settings
-from gdata.calendar.client import CalendarClient, CalendarEventQuery
+import argparse
+import httplib2
 from datetime import datetime, timedelta
+
+import settings
+
 from mailsnake import MailSnake
+
+import gflags
+from oauth2client.file import Storage
+from oauth2client.client import OAuth2WebServerFlow
+from oauth2client.tools import run_flow
+from oauth2client import tools
+from apiclient.discovery import build
 
 def find_template(name):
     mc = MailSnake(settings.MC_API_KEY)
@@ -22,7 +32,20 @@ def find_list(name):
 
     return lists['data'][0]['id']
 
-def parse_timestamp(ts):
+def toTimeString(dateTime):
+    # formatting example: 2011-06-03T10:00:00-07:00
+
+    month = str(dateTime.month)
+    if len(month) == 1:
+        month = '0' + month
+
+    day = str(dateTime.day)
+    if len(day) == 1:
+        day = '0' + day
+
+    return str(dateTime.year) + '-' + month + '-' + day + 'T00:00:00-05:00'
+
+def fromTimeString(ts):
     if 'T' in ts:
         daystr, timestr = tuple(ts.split('T'))
     else:
@@ -36,50 +59,54 @@ def parse_timestamp(ts):
     return datetime(year, month, day, hour, minute), True
 
 def event_text(event, html=True):
-    event_dict = {}
+    ''' convert event from Google format to Mailchimp format '''
 
-    event_dict['title'] = event.title.text
+    event_data = {}
+    event_data['title'] = event['summary']
     
-    start_time, start_set = parse_timestamp(event.when[0].start)
-    end_time, end_set = parse_timestamp(event.when[0].end)
-    event_dict['start_date'] = start_time.strftime(settings.DATE_FORMAT)
-    event_dict['start_time'] = start_time.strftime(settings.TIME_FORMAT)
-    event_dict['end_date'] = end_time.strftime(settings.DATE_FORMAT)
-    event_dict['end_time'] = end_time.strftime(settings.TIME_FORMAT) 
-    event_dict['location'] = event.where[0].value
-    event_dict['description'] = event.content.text
+    start_time, start_set = fromTimeString(event['start']['dateTime'])
+    end_time, end_set = fromTimeString(event['end']['dateTime'])
+    event_data['start_date'] = start_time.strftime(settings.DATE_FORMAT)
+    event_data['start_time'] = start_time.strftime(settings.TIME_FORMAT)
+    event_data['end_date'] = end_time.strftime(settings.DATE_FORMAT)
+    event_data['end_time'] = end_time.strftime(settings.TIME_FORMAT)
+
+    event_data['location'] = event.get('location', 'TBA')
+    event_data['description'] = event.get('description', 'No description')
     
-    if event_dict['start_date'] != event_dict['end_date']:
-        dif_dates = True
-    else:
-        dif_dates = False
-    if dif_dates:
+    if event_data['start_date'] != event_data['end_date']:
         if start_set and end_set:
-            template = unicode(settings.EVENT_HTML_TEMPLATE_WITH_ALL) if html else unicode(settings.EVENT_TEXT_TEMPLATE_WITH_ALL)
+            template = unicode(settings.EVENT_HTML_TEMPLATE_WITH_ALL) if html \
+                    else unicode(settings.EVENT_TEXT_TEMPLATE_WITH_ALL)
         else:
-            template = unicode(settings.EVENT_HTML_TEMPLATE_NO_TIMES) if html else unicode(settings.EVENT_TEXT_TEMPLATE_NO_TIMES)
+            template = unicode(settings.EVENT_HTML_TEMPLATE_NO_TIMES) if html \
+                    else unicode(settings.EVENT_TEXT_TEMPLATE_NO_TIMES)
     else:
-        template = unicode(settings.EVENT_HTML_TEMPLATE_DEFAULT) if html else unicode(settings.EVENT_TEXT_TEMPLATE_DEFAULT)
+        template = unicode(settings.EVENT_HTML_TEMPLATE_DEFAULT) if html \
+                else unicode(settings.EVENT_TEXT_TEMPLATE_DEFAULT)
             
-    return template.format(**event_dict)
+    return template.format(**event_data)
 
 def get_events():
-    client = CalendarClient(source='adicu-pericles-v1')
-    client.ClientLogin(settings.GCAL_USERNAME, 
-                       settings.GCAL_PASSWORD, 
-                       client.source)
+    parser = argparse.ArgumentParser(parents=[tools.argparser])
+    FLAGS = parser.parse_args()
 
-    uri = "https://www.google.com/calendar/feeds/" + settings.GCAL_ID + \
-                "/private/full"
+    FLOW = OAuth2WebServerFlow(client_id=settings.GCAL_CLIENT_ID,
+            client_secret=settings.GCAL_CLIENT_SECRET,
+            scope='https://www.googleapis.com/auth/calendar')
+    storage = Storage(settings.CREDENTIALS_PATH)
+    run_flow(FLOW, storage, FLAGS)
+    credentials = storage.get()
+    http = credentials.authorize(httplib2.Http())
+    service = build('calendar', 'v3', http=http)
 
-    start_date = datetime.today()
-    end_date = start_date + timedelta(days=10)
-
-    query = CalendarEventQuery()
-    query.start_min = start_date.strftime('%Y-%m-%d')
-    query.start_max = end_date.strftime('%Y-%m-%d')
-
-    return client.GetCalendarEventFeed(uri=uri, q=query)
+    response = service.events().list(
+            calendarId = settings.GCAL_ID,
+            timeMin = toTimeString(datetime.now()),
+            timeMax = toTimeString(datetime.now() + timedelta(weeks=2)),
+            singleEvents = True,
+            orderBy = 'startTime').execute()
+    return response["items"]
 
 def gen_blurb(html=True):
     if html:
@@ -90,9 +117,9 @@ def gen_blurb(html=True):
 def gen_email_text():
     feed = get_events()
     text = u'\n\n'.join([event_text(event, False) 
-                        for event in reversed(feed.entry)])
+                        for event in feed])
     html = u'\n\n'.join([event_text(event, True) 
-                        for event in reversed(feed.entry)])
+                        for event in feed])
     return gen_blurb(True)+ html, gen_blurb(False) + text
 
 def create_campaign(html, text):
