@@ -59,29 +59,22 @@ def fromTimeString(ts):
     return datetime(year, month, day, hour, minute), True
 
 def event_text(event, html=True):
-    event_dict = {}
+    ''' convert event from Google format to Mailchimp format '''
 
-    #TODO: handle key checking better
-
-    event_dict['title'] = event.get('summary', '')
+    event_data = {}
+    event_data['title'] = event['summary']
     
-    if 'start' in event and 'dateTime' in event['start']:
-        start_time, start_set = fromTimeString(event['start']['dateTime'])
-        end_time, end_set = fromTimeString(event['end']['dateTime'])
-        event_dict['start_date'] = start_time.strftime(settings.DATE_FORMAT)
-        event_dict['start_time'] = start_time.strftime(settings.TIME_FORMAT)
-        event_dict['end_date'] = end_time.strftime(settings.DATE_FORMAT)
-        event_dict['end_time'] = end_time.strftime(settings.TIME_FORMAT)
-    else:
-        event_dict['start_date'] = '' 
-        event_dict['start_time'] = '' 
-        event_dict['end_date'] = '' 
-        event_dict['end_time'] = '' 
+    start_time, start_set = fromTimeString(event['start']['dateTime'])
+    end_time, end_set = fromTimeString(event['end']['dateTime'])
+    event_data['start_date'] = start_time.strftime(settings.DATE_FORMAT)
+    event_data['start_time'] = start_time.strftime(settings.TIME_FORMAT)
+    event_data['end_date'] = end_time.strftime(settings.DATE_FORMAT)
+    event_data['end_time'] = end_time.strftime(settings.TIME_FORMAT)
 
-    event_dict['location'] = event.get('location', 'TBA')
-    event_dict['description'] = event.get('description', 'No description')
+    event_data['location'] = event.get('location', 'TBA')
+    event_data['description'] = event.get('description', 'No description')
     
-    if event_dict['start_date'] != event_dict['end_date']:
+    if event_data['start_date'] != event_data['end_date']:
         if start_set and end_set:
             template = unicode(settings.EVENT_HTML_TEMPLATE_WITH_ALL) if html \
                     else unicode(settings.EVENT_TEXT_TEMPLATE_WITH_ALL)
@@ -92,7 +85,7 @@ def event_text(event, html=True):
         template = unicode(settings.EVENT_HTML_TEMPLATE_DEFAULT) if html \
                 else unicode(settings.EVENT_TEXT_TEMPLATE_DEFAULT)
             
-    return template.format(**event_dict)
+    return template.format(**event_data)
 
 def get_events():
     parser = argparse.ArgumentParser(parents=[tools.argparser])
