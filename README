@@ -14,6 +14,6 @@ a setup.py script later.
 
 Usage:
 
- * Copy the example-settings.py file to settings.py
- * Change the variables in settings.py to your liking
+ * Copy the example-sensitive.py file to settings.py
+ * Change the variables in sensitive.py to your liking
  * Run pericles.py
