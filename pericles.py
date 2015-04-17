@@ -13,6 +13,11 @@ from oauth2client.tools import run_flow
 from oauth2client import tools
 from apiclient.discovery import build
 
+import requests
+
+from bson import json_util
+import json
+
 def find_template(name):
     mc = MailSnake(settings.MC_API_KEY)
     templates = mc.templates()['user']
@@ -61,11 +66,12 @@ def fromTimeString(ts):
 def event_text(event, html=True):
     ''' convert event from Google format to Mailchimp format '''
 
+    # TODO: fix start_set, end_set
     event_data = {}
-    event_data['title'] = event['summary']
+    event_data['title'] = event['title']
     
-    start_time, start_set = fromTimeString(event['start']['dateTime'])
-    end_time, end_set = fromTimeString(event['end']['dateTime'])
+    start_time = event['start_datetime']
+    end_time = event['end_datetime']
     event_data['start_date'] = start_time.strftime(settings.DATE_FORMAT)
     event_data['start_time'] = start_time.strftime(settings.TIME_FORMAT)
     event_data['end_date'] = end_time.strftime(settings.DATE_FORMAT)
@@ -88,29 +94,15 @@ def event_text(event, html=True):
     return template.format(**event_data)
 
 def get_events():
-    parser = argparse.ArgumentParser(parents=[tools.argparser])
-    FLAGS = parser.parse_args()
-
-    FLOW = OAuth2WebServerFlow(client_id=settings.GCAL_CLIENT_ID,
-            client_secret=settings.GCAL_CLIENT_SECRET,
-            scope='https://www.googleapis.com/auth/calendar')
-    storage = Storage(settings.CREDENTIALS_PATH)
-    run_flow(FLOW, storage, FLAGS)
-    credentials = storage.get()
-    http = credentials.authorize(httplib2.Http())
-    service = build('calendar', 'v3', http=http)
-
-    response = service.events().list(
-            calendarId = settings.GCAL_ID,
-            timeMin = toTimeString(datetime.now()),
-            timeMax = toTimeString(datetime.now() + timedelta(weeks=2)),
-            singleEvents = True,
-            orderBy = 'startTime').execute()
-    return response["items"]
+    # TODO: get google calendar events
+    # rewrite to use eventum api
+    r = requests.get('http://10.0.2.2:5000/admin/api/events/this_week')
+    return json.loads(r.text, object_hook=json_util.object_hook)
 
 def gen_blurb(html=True):
+    blurb_text = 'haha what\'s up'
     if html:
-        return u'<h3>Hey ADI</h3></br><p>Have a good week</p>'
+        return u'<h3>Hey ADI,</h3><p>' + blurb_text + '</p><br/>'
     else:
         return u'Hey ADI\n Have a good week'
 
@@ -120,17 +112,17 @@ def gen_email_text():
                         for event in feed])
     html = u'\n\n'.join([event_text(event, True) 
                         for event in feed])
-    return gen_blurb(True)+ html, gen_blurb(False) + text
+    return gen_blurb(True) + html, gen_blurb(False) + text
 
 def create_campaign(html, text):
     mc = MailSnake(settings.MC_API_KEY)
     options = {
-        "subject" : datetime.today().strftime(settings.SUBJECT_TEMPLATE),
-        "from_email" : settings.MC_EMAIL,
-        "from_name" : settings.MC_FROM_NAME,
-        "to_name" : settings.MC_TO_NAME,
-        "template_id" : find_template(settings.MC_TEMPLATE_NAME),
-        "list_id" : find_list(settings.MC_LIST_NAME)
+        'subject' : datetime.today().strftime(settings.SUBJECT_TEMPLATE),
+        'from_email' : settings.MC_EMAIL,
+        'from_name' : settings.MC_FROM_NAME,
+        'to_name' : settings.MC_TO_NAME,
+        'template_id' : find_template(settings.MC_TEMPLATE_NAME),
+        'list_id' : find_list(settings.MC_LIST_NAME)
     }
     section_name = 'html_' + settings.MC_TEMPLATE_SECTION
     content = {section_name: html, "text": text}
