@@ -3,3 +3,4 @@
 env
 sensitive.py
 credentials.txt
+client_secrets.json
