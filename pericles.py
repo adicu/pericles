@@ -94,9 +94,9 @@ def recordToEvent(record):
 
 def isThisWeek(event):
     now = datetime.now()
-    day = now.weekday()
+    day = (now.weekday() + 1) % 7   # make Sunday be first day of week
     sunday = now - timedelta(days=day, hours=now.hour, minutes=now.minute)
-    return sunday <= event['start_datetime'] < sunday + timedelta(days=7)
+    return sunday <= event['start_datetime'] < sunday + timedelta(days=10)
 
 def get_sheets_events():
     gc = gspread.authorize(get_credentials())
