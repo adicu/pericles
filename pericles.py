@@ -102,7 +102,10 @@ def get_sheets_events():
     gc = gspread.authorize(get_credentials())
     sheets = gc.openall()
     sheet = gc.open('ADI Community Events')
-    events = map(recordToEvent, sheet.sheet1.get_all_records())
+
+    isValidRecord = lambda r: 'Name of Event' in r and r['Name of Event'] != ''
+    records = filter(isValidRecord, sheet.sheet1.get_all_records())
+    events = map(recordToEvent, records)
     
     return filter(isThisWeek, events)
 
