@@ -38,10 +38,20 @@ def find_list(name):
     return lists['data'][0]['id']
  
 def fromTimeString(dts):
+    if dts == '':
+        return ''
+
     [ds, ts] = dts.split(' ')
     [month, day, year] = map(int, ds.split('/'))
     [hour, minute, second] = map(int, ts.split(':'))
     return datetime(year, month, day, hour, minute)
+
+def fromDateString(ds):
+    if ds == '':
+        return ''
+
+    [month, day, year] = map(int, ds.split('/'))
+    return datetime(year, month, day)
 
 def event_text(event, html=True):
 
@@ -51,15 +61,21 @@ def event_text(event, html=True):
     
     start_time = event['start_datetime']
     end_time = event['end_datetime']
-    event_data['start_date'] = start_time.strftime(settings.DATE_FORMAT)
-    event_data['start_time'] = start_time.strftime(settings.TIME_FORMAT)
-    event_data['end_date'] = end_time.strftime(settings.DATE_FORMAT)
-    event_data['end_time'] = end_time.strftime(settings.TIME_FORMAT)
+    if start_time != '':
+        event_data['start_date'] = start_time.strftime(settings.DATE_FORMAT)
+        event_data['start_time'] = start_time.strftime(settings.TIME_FORMAT)
+    if end_time != '':
+        event_data['end_date'] = end_time.strftime(settings.DATE_FORMAT)
+        event_data['end_time'] = end_time.strftime(settings.TIME_FORMAT)
 
     event_data['location'] = event.get('location', 'TBA')
     event_data['description'] = event.get('long_description')
+    event_data['subtitle']  = event.get('subtitle', '')
     
-    if event_data['start_date'] != event_data['end_date']:
+    if start_time == '' or end_time == '':
+        template = unicode(settings.EVENT_HTML_TEMPLATE_CUSTOM_SUB) if html \
+                else unicode(settings.EVENT_TEXT_TEMPLATE_CUSTOM_SUB)
+    elif event_data['start_date'] != event_data['end_date']:
         template = unicode(settings.EVENT_HTML_TEMPLATE_WITH_ALL) if html \
                 else unicode(settings.EVENT_TEXT_TEMPLATE_WITH_ALL)
     else:
@@ -89,14 +105,16 @@ def recordToEvent(record):
             , 'start_datetime': fromTimeString(record['Start Time'])
             , 'end_datetime': fromTimeString(record['End Time'])
             , 'location': record.get('Location of Event', 'TBA')
-            , 'long_description': record['Blurb'] }
+            , 'subtitle': record.get('Custom Subtitle', '')
+            , 'long_description': record['Blurb']
+            , 'include_date': fromDateString(record['Include Date']) }
     return event
 
 def isThisWeek(event):
     now = datetime.now()
     day = (now.weekday() + 1) % 7   # make Sunday be first day of week
     sunday = now - timedelta(days=day, hours=now.hour, minutes=now.minute)
-    return sunday <= event['start_datetime'] < sunday + timedelta(days=10)
+    return sunday <= event['include_date'] < sunday + timedelta(days=10)
 
 def get_sheets_events():
     gc = gspread.authorize(get_credentials())
@@ -112,7 +130,12 @@ def get_sheets_events():
 def get_events():
     r = requests.get('https://adicu.com/admin/api/events/this_week')
     eventum_events = json.loads(r.text, object_hook=json_util.object_hook)['data']
+    eventum_events.sort(key=lambda e: e['start_datetime'])
+
     sheets_events = get_sheets_events()
+    sheets_events.sort(key=lambda e: e['include_date']
+            if e['start_datetime'] == '' else e['start_datetime'])
+
     return eventum_events, sheets_events
 
 def gen_blurb(html=True):
