@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import requests
 import json
 import fileinput
+import logging
+import sys
 
 from sensitive import *
 import settings
@@ -36,7 +38,7 @@ def find_list(name):
         return 0
 
     return lists['data'][0]['id']
- 
+
 def fromTimeString(dts):
     if dts == '':
         return ''
@@ -58,7 +60,7 @@ def event_text(event, html=True):
     event_data = {}
     event_data['title'] = event['title']
     event_data['url'] = event.get('facebook_url', 'http://www.adicu.com')
-    
+
     start_time = event['start_datetime']
     end_time = event['end_datetime']
     if start_time != '':
@@ -71,7 +73,7 @@ def event_text(event, html=True):
     event_data['location'] = event.get('location', 'TBA')
     event_data['description'] = event.get('long_description')
     event_data['subtitle']  = event.get('subtitle', '')
-    
+
     if start_time == '' or end_time == '':
         template = unicode(settings.EVENT_HTML_TEMPLATE_CUSTOM_SUB) if html \
                 else unicode(settings.EVENT_TEXT_TEMPLATE_CUSTOM_SUB)
@@ -81,7 +83,7 @@ def event_text(event, html=True):
     else:
         template = unicode(settings.EVENT_HTML_TEMPLATE_DEFAULT) if html \
                 else unicode(settings.EVENT_TEXT_TEMPLATE_DEFAULT)
-            
+
     return template.format(**event_data)
 
 def get_credentials():
@@ -89,8 +91,8 @@ def get_credentials():
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
-        flow = OAuth2WebServerFlow(client_id=CLIENT_ID,
-                                   client_secret=CLIENT_SECRET,
+        flow = OAuth2WebServerFlow(client_id=settings.GCAL_CLIENT_ID,
+                                   client_secret=settings.GCAL_CLIENT_SECRET,
                                    scope='https://spreadsheets.google.com/feeds')
         parser = argparse.ArgumentParser(parents=[tools.argparser])
         flags = parser.parse_args()
@@ -114,17 +116,25 @@ def isThisWeek(event):
     now = datetime.now()
     day = (now.weekday() + 1) % 7   # make Sunday be first day of week
     sunday = now - timedelta(days=day, hours=now.hour, minutes=now.minute)
+    # in the form the include date is mandatory for the script
+    if not event['include_date']:
+      return False
     return sunday <= event['include_date'] < sunday + timedelta(days=10)
 
 def get_sheets_events():
     gc = gspread.authorize(get_credentials())
-    sheets = gc.openall()
-    sheet = gc.open('ADI Community Events')
+    # sheets = gc.openall()
+    # sheet = gc.open('ADI Community Events 16')
+    try:
+      sheet = gc.open_by_key('18cy2TtUXtrl2DPz89SJuCi7_Ggp7uBdWtaPcsoOsuaM')
+    except gspread.exceptions.HTTPError:
+      logging.warning("Cannot access Google Drive. Retry one more time in 10 seconds to access it.")
+      time.sleep(10)
 
     isValidRecord = lambda r: 'Name of Event' in r and r['Name of Event'] != ''
     records = filter(isValidRecord, sheet.sheet1.get_all_records())
     events = map(recordToEvent, records)
-    
+
     return filter(isThisWeek, events)
 
 def get_events():
@@ -140,8 +150,11 @@ def get_events():
 
 def gen_blurb(html=True):
     blurb_text = ''
-    for line in fileinput.input():
-        blurb_text = blurb_text + '\n' + line
+    with open(sys.argv[1]) as f:
+      lines = f.readlines()
+
+    for line in lines:
+      blurb_text += str(line)
 
     if html:
         return u'<h3>Hey ADI,</h3><p>' + blurb_text + '</p><br/>'
@@ -156,7 +169,7 @@ def gen_seperator(html=True):
         return u'\n' + seperator_text + '\n'
 
 def gen_events(events, html=True):
-    return u'\n\n'.join([event_text(event, html) 
+    return u'\n\n'.join([event_text(event, html)
                         for event in events])
 
 def gen_email_text():
@@ -195,12 +208,12 @@ def campaign_info(cid):
 
     if campaigns['total'] == 0:
         return 0
-    
+
     webid = campaigns['data'][0]['web_id']
     title = campaigns['data'][0]['title']
-    
+
     region = settings.MC_API_KEY.split('-')[1]
-    
+
     url = "https://%s.admin.mailchimp.com/campaigns/show?id=%d" % (region, webid)
 
     return title, url
