@@ -1,6 +1,3 @@
-# this comes from google calendar settings
-GCAL_ID="blahblahblah@group.google.calendar.com"
-
 # these come from google app settings (email jettca1 -at- gmail -dot- com for more detail)
 GCAL_CLIENT_ID=""
 GCAL_CLIENT_SECRET=""
