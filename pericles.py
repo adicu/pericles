@@ -6,6 +6,7 @@ import json
 import fileinput
 import logging
 import sys
+import time
 
 from sensitive import *
 import settings
@@ -91,8 +92,8 @@ def get_credentials():
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
-        flow = OAuth2WebServerFlow(client_id=settings.GCAL_CLIENT_ID,
-                                   client_secret=settings.GCAL_CLIENT_SECRET,
+        flow = OAuth2WebServerFlow(client_id=GCAL_CLIENT_ID,
+                                   client_secret=GCAL_CLIENT_SECRET,
                                    scope='https://spreadsheets.google.com/feeds')
         parser = argparse.ArgumentParser(parents=[tools.argparser])
         flags = parser.parse_args()
