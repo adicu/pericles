@@ -1,4 +1,4 @@
-# these come from google app settings (email jettca1 -at- gmail -dot- com for more detail)
+# these come from google app settings (email evantarrh -at- gmail -dot- com for more detail)
 GCAL_CLIENT_ID=""
 GCAL_CLIENT_SECRET=""
 
