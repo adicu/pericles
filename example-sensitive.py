@@ -8,8 +8,8 @@ MC_LIST_ID=""
 
 # just leave these it's fine
 MC_LIST_NAME="ADI Newsletter"
-MC_EMAIL="dina@adicu.com"
-MC_FROM_NAME="Application Development Initiative"
+MC_EMAIL="hello@adicu.com"
+MC_FROM_NAME="ADI"
 MC_TO_NAME="ADI Newsletter"
 MC_TEMPLATE_SECTION="std_content00"
 MC_TEMPLATE_NAME="ADI Newsletter"
