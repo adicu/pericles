@@ -13,8 +13,13 @@ the package `six`. If that's the case, run
 `pip install -r requirements.txt --ignore-installed six`.
 
 
-## Usage:
+## Setup:
 
  * `mv example-sensitive.py sensitive.py` (do not recommit this to github)
  * Change the variables in sensitive.py to your liking
- * Run `python pericles.py blurb.txt` edit the blurb each week to your liking
+
+## Usage
+ 
+ * Edit the blurb each week to your liking
+ * Run `python pericles.py` to complete the auth flow
+ * Run `python pericles.py blurb.txt` to actually create the campaign
